@@ -18,6 +18,23 @@ def _escape_md_cell(v):
     return s
 
 
+def _unescape_md_cell_text(s):
+    s = "" if s is None else str(s)
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("<br>", "\n")
+    out = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s) and s[i + 1] in ("\\", "|"):
+            out.append(s[i + 1])
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _is_blank_cell_value(v):
     if v is None:
         return True
@@ -322,10 +339,197 @@ def excel_to_markdown(
     return "\n\n".join([p for p in parts if p.strip() != ""])
 
 
+def _is_md_heading_line(line):
+    m = re.match(r"^\s*(#{1,6})\s+(.+?)\s*$", line)
+    if not m:
+        return None
+    return m.group(2).strip()
+
+
+def _md_pipe_is_escaped(s, idx):
+    j = idx - 1
+    c = 0
+    while j >= 0 and s[j] == "\\":
+        c += 1
+        j -= 1
+    return (c % 2) == 1
+
+
+def _split_md_pipe_row(line):
+    s = line.strip()
+    if not (s.startswith("|") and s.endswith("|")):
+        return None
+    s = s[1:-1]
+    cells = []
+    cur = []
+    for i, ch in enumerate(s):
+        if ch == "|" and not _md_pipe_is_escaped(s, i):
+            cells.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    cells.append("".join(cur).strip())
+    return cells
+
+
+def _is_md_separator_row(cells):
+    if not cells:
+        return False
+    for c in cells:
+        t = c.strip()
+        if t == "":
+            return False
+        if not all(ch in "-: " for ch in t):
+            return False
+        if "-" not in t:
+            return False
+    return True
+
+
+def _infer_md_cell_value(text):
+    s = _unescape_md_cell_text(text).strip()
+    if s == "":
+        return ""
+    if s.upper() == "TRUE":
+        return True
+    if s.upper() == "FALSE":
+        return False
+    if re.fullmatch(r"-?\d{4}-\d{2}-\d{2}", s):
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except Exception:
+            return s
+    if re.fullmatch(r"-?\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", s):
+        try:
+            return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return s
+    if re.fullmatch(r"-?\d+", s):
+        try:
+            return int(s)
+        except Exception:
+            return s
+    if re.fullmatch(r"-?\d+\.\d+", s):
+        try:
+            return float(s)
+        except Exception:
+            return s
+    return s
+
+
+def _safe_sheet_name(name, fallback, used):
+    raw = (name or "").strip()
+    if raw == "":
+        raw = fallback
+    raw = re.sub(r"[\[\]\:\*\?\/\\]", " ", raw).strip()
+    if raw == "":
+        raw = fallback
+    base = raw[:31]
+    candidate = base
+    n = 2
+    while candidate in used or candidate == "":
+        suffix = f" {n}"
+        candidate = (base[: 31 - len(suffix)] + suffix).rstrip()
+        n += 1
+    used.add(candidate)
+    return candidate
+
+
+def markdown_to_excel(
+    markdown_text,
+    output_path,
+    sheet_names_from_headings=True,
+    default_sheet_name="Sheet",
+):
+    lines = markdown_text.splitlines()
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    used_names = set()
+    current_heading = None
+    tables = []
+
+    i = 0
+    while i < len(lines):
+        heading = _is_md_heading_line(lines[i])
+        if heading is not None and sheet_names_from_headings:
+            current_heading = heading
+            i += 1
+            continue
+
+        row_cells = _split_md_pipe_row(lines[i])
+        if row_cells is None:
+            i += 1
+            continue
+
+        block = []
+        while i < len(lines):
+            c = _split_md_pipe_row(lines[i])
+            if c is None:
+                break
+            block.append(c)
+            i += 1
+
+        if not block:
+            continue
+
+        out_rows = []
+        for r in block:
+            if _is_md_separator_row(r):
+                continue
+            out_rows.append(r)
+
+        if not out_rows:
+            continue
+
+        tables.append((current_heading, out_rows))
+
+    if not tables:
+        ws = wb.create_sheet(_safe_sheet_name(None, f"{default_sheet_name}1", used_names))
+        ws.freeze_panes = "A2"
+        wb.save(output_path)
+        return output_path
+
+    for idx, (heading, rows) in enumerate(tables, start=1):
+        sheet_hint = heading if sheet_names_from_headings else None
+        ws = wb.create_sheet(_safe_sheet_name(sheet_hint, f"{default_sheet_name}{idx}", used_names))
+
+        max_cols = max(len(r) for r in rows)
+        norm_rows = [r + [""] * (max_cols - len(r)) for r in rows]
+
+        for r_idx, r in enumerate(norm_rows, start=1):
+            for c_idx, cell_text in enumerate(r, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=_infer_md_cell_value(cell_text))
+
+        for c_idx in range(1, max_cols + 1):
+            ws.cell(row=1, column=c_idx).font = openpyxl.styles.Font(bold=True)
+
+        ws.freeze_panes = "A2"
+
+        for c_idx in range(1, max_cols + 1):
+            best = 0
+            for r_idx in range(1, min(len(norm_rows), 200) + 1):
+                v = ws.cell(row=r_idx, column=c_idx).value
+                if v is None:
+                    continue
+                s = str(v).replace("\n", " ")
+                best = max(best, len(s))
+            if best > 0:
+                ws.column_dimensions[openpyxl.utils.get_column_letter(c_idx)].width = min(60, max(10, best + 2))
+
+    wb.save(output_path)
+    return output_path
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="excel_to_markdown.py")
-    p.add_argument("input", help="Excel file path (.xlsx)")
-    p.add_argument("-o", "--output", help="Output markdown file path (default: stdout)")
+    p.add_argument("input", help="Input file path (.xlsx or .md)")
+    p.add_argument(
+        "-o",
+        "--output",
+        help="Output path (md: default stdout; xlsx: default <input>.xlsx next to markdown)",
+    )
+    p.add_argument("--to", choices=["md", "xlsx"], help="Force output format (auto by input suffix if omitted)")
     p.add_argument("--sheet", action="append", help="Sheet name to export (repeatable)")
     p.add_argument("--sheet-index", action="append", type=int, help="1-based sheet index to export (repeatable)")
     p.add_argument("--sheet-regex", help="Regex to select sheets by name")
@@ -341,6 +545,16 @@ def _build_parser():
     p.add_argument("--min-table-rows", type=int, default=2, help="Minimum rows to keep a table")
     p.add_argument("--heading-level", type=int, default=2, help="Base heading level when emitting headings")
     p.add_argument("--no-headings", action="store_true", help="Do not emit any headings")
+    p.add_argument(
+        "--no-sheet-names-from-headings",
+        action="store_true",
+        help="When converting markdown to xlsx, do not use markdown headings as sheet names",
+    )
+    p.add_argument(
+        "--default-sheet-name",
+        default="Sheet",
+        help="When converting markdown to xlsx, default sheet name prefix (default: Sheet)",
+    )
     return p
 
 
@@ -348,31 +562,58 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     args = _build_parser().parse_args(argv)
 
-    md = excel_to_markdown(
-        args.input,
-        sheets=args.sheet,
-        sheet_indexes=args.sheet_index,
-        sheet_regex=args.sheet_regex,
-        formulas=args.formulas,
-        trim_outer=(not args.no_trim),
-        header_row=args.header_row,
-        no_header=args.no_header,
-        max_cells=args.max_cells,
-        max_rows=args.max_rows,
-        max_cols=args.max_cols,
-        split_tables=args.split_tables,
-        blank_rows_gap=args.blank_rows_gap,
-        min_table_rows=args.min_table_rows,
-        heading_level=args.heading_level,
-        no_headings=args.no_headings,
-    )
+    in_path = Path(args.input)
+    suffix = in_path.suffix.lower()
+    mode = args.to
+    if mode is None:
+        if suffix in (".xlsx", ".xlsm"):
+            mode = "md"
+        elif suffix in (".md", ".markdown"):
+            mode = "xlsx"
+        elif suffix == ".xls":
+            raise ValueError("unsupported_format: .xls (please convert to .xlsx)")
+        else:
+            raise ValueError(f"unsupported_format: {suffix} (expected .xlsx/.xlsm or .md)")
 
-    if args.output:
-        Path(args.output).write_text(md + ("" if md.endswith("\n") else "\n"), encoding="utf-8")
-    else:
-        sys.stdout.write(md)
-        if md and not md.endswith("\n"):
-            sys.stdout.write("\n")
+    if mode == "md":
+        md = excel_to_markdown(
+            args.input,
+            sheets=args.sheet,
+            sheet_indexes=args.sheet_index,
+            sheet_regex=args.sheet_regex,
+            formulas=args.formulas,
+            trim_outer=(not args.no_trim),
+            header_row=args.header_row,
+            no_header=args.no_header,
+            max_cells=args.max_cells,
+            max_rows=args.max_rows,
+            max_cols=args.max_cols,
+            split_tables=args.split_tables,
+            blank_rows_gap=args.blank_rows_gap,
+            min_table_rows=args.min_table_rows,
+            heading_level=args.heading_level,
+            no_headings=args.no_headings,
+        )
+
+        if args.output:
+            Path(args.output).write_text(md + ("" if md.endswith("\n") else "\n"), encoding="utf-8")
+        else:
+            sys.stdout.write(md)
+            if md and not md.endswith("\n"):
+                sys.stdout.write("\n")
+        return 0
+
+    if mode == "xlsx":
+        out_path = Path(args.output) if args.output else in_path.with_suffix(".xlsx")
+        text = in_path.read_text(encoding="utf-8")
+        markdown_to_excel(
+            text,
+            str(out_path),
+            sheet_names_from_headings=(not args.no_sheet_names_from_headings),
+            default_sheet_name=args.default_sheet_name,
+        )
+        return 0
+
     return 0
 
 

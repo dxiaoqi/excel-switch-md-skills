@@ -1,28 +1,36 @@
 ---
-name: "excel-to-markdown"
-description: "Converts local Excel (.xlsx) files to Markdown tables. Invoke when a user asks to turn an Excel workbook/sheet into Markdown for Trae/LLM consumption."
+name: "xcel-swtich-markdown"
+description: "Converts Excel (.xlsx) ↔ Markdown tables. Invoke when user asks to export Excel to Markdown or build Excel from Markdown tables."
 ---
 
-# Excel to Markdown
+# Xcel Switch Markdown
 
 ## Goal
 
-将本地 Excel（.xlsx）转换成适合 Trae/LLM 直接阅读与引用的 Markdown（pipe table），支持多 sheet、按空行自动分表、限制行列避免输出过大。
+在本地实现 Excel（.xlsx）与 Markdown（pipe table）之间的双向转换，适合把表格内容交给 Trae/LLM，也支持把 Markdown 表格回写成 Excel 文件。
 
 ## When to Invoke
 
 - 用户说“把这个 Excel 转成 Markdown / 贴给大模型用 / 给 agent 用”
-- 用户给了一个 .xlsx 文件路径，希望你输出可直接粘贴的 Markdown 表格
-- 用户希望指定某些 sheet、或只导出前 N 行/列
+- 用户说“把这些 Markdown 表格还原/生成成 Excel”
+- 用户希望指定某些 sheet、或只导出前 N 行/列，或需要把 Markdown 中多张表拆到多个 sheet
 
 ## How to Use
 
-本仓库提供脚本：`excel_to_markdown.py`。
+本仓库提供脚本：`xcel_switch_markdown.py`（支持双向）。
 
 ### Basic
 
+Excel → Markdown（输出到 stdout）：
+
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx > out.md
+python3 xcel_switch_markdown.py /path/to/file.xlsx > out.md
+```
+
+Markdown → Excel（输出到文件；如果不传 `-o` 会默认写到同目录同名 `.xlsx`）：
+
+```bash
+python3 xcel_switch_markdown.py /path/to/file.md -o out.xlsx
 ```
 
 ### Select sheets
@@ -30,19 +38,19 @@ python3 excel_to_markdown.py /path/to/file.xlsx > out.md
 按名称：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --sheet Sheet1 --sheet Sheet2
+python3 xcel_switch_markdown.py /path/to/file.xlsx --sheet Sheet1 --sheet Sheet2
 ```
 
 按序号（从 1 开始）：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --sheet-index 1 --sheet-index 3
+python3 xcel_switch_markdown.py /path/to/file.xlsx --sheet-index 1 --sheet-index 3
 ```
 
 按正则匹配：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --sheet-regex "日报|周报"
+python3 xcel_switch_markdown.py /path/to/file.xlsx --sheet-regex "日报|周报"
 ```
 
 ### Split multiple tables inside a sheet
@@ -50,13 +58,13 @@ python3 excel_to_markdown.py /path/to/file.xlsx --sheet-regex "日报|周报"
 当一个 sheet 中用空行分隔了多张表：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --split-tables
+python3 xcel_switch_markdown.py /path/to/file.xlsx --split-tables
 ```
 
 可调整分隔判定（连续空行数）与最小表行数：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --split-tables --blank-rows-gap 1 --min-table-rows 2
+python3 xcel_switch_markdown.py /path/to/file.xlsx --split-tables --blank-rows-gap 1 --min-table-rows 2
 ```
 
 ### Keep output small (recommended for chat)
@@ -64,7 +72,7 @@ python3 excel_to_markdown.py /path/to/file.xlsx --split-tables --blank-rows-gap 
 限制行/列（裁剪空白后再限制）：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --max-rows 60 --max-cols 12
+python3 xcel_switch_markdown.py /path/to/file.xlsx --max-rows 60 --max-cols 12
 ```
 
 ### Headings control
@@ -72,7 +80,7 @@ python3 excel_to_markdown.py /path/to/file.xlsx --max-rows 60 --max-cols 12
 多 sheet / 多表时默认会输出标题，便于引用；可关闭：
 
 ```bash
-python3 excel_to_markdown.py /path/to/file.xlsx --no-headings
+python3 xcel_switch_markdown.py /path/to/file.xlsx --no-headings
 ```
 
 ## Output Expectations

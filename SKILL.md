@@ -15,14 +15,14 @@ description: "Converts local Excel (.xlsx) files to Markdown tables. Invoke when
 - 用户给了一个 .xlsx 文件路径，希望你输出可直接粘贴的 Markdown 表格
 - 用户希望指定某些 sheet、或只导出前 N 行/列
 
-## How to Use (Repository Tooling)
+## How to Use
 
-本技能目录内置了可直接交付的脚本：`.trae/skills/excel-to-markdown/excel_to_markdown.py`。
+本仓库提供脚本：`excel_to_markdown.py`。
 
 ### Basic
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx > out.md
+python3 excel_to_markdown.py /path/to/file.xlsx > out.md
 ```
 
 ### Select sheets
@@ -30,19 +30,19 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx >
 按名称：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --sheet Sheet1 --sheet Sheet2
+python3 excel_to_markdown.py /path/to/file.xlsx --sheet Sheet1 --sheet Sheet2
 ```
 
 按序号（从 1 开始）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --sheet-index 1 --sheet-index 3
+python3 excel_to_markdown.py /path/to/file.xlsx --sheet-index 1 --sheet-index 3
 ```
 
 按正则匹配：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --sheet-regex "日报|周报"
+python3 excel_to_markdown.py /path/to/file.xlsx --sheet-regex "日报|周报"
 ```
 
 ### Split multiple tables inside a sheet
@@ -50,13 +50,13 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx -
 当一个 sheet 中用空行分隔了多张表：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --split-tables
+python3 excel_to_markdown.py /path/to/file.xlsx --split-tables
 ```
 
 可调整分隔判定（连续空行数）与最小表行数：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --split-tables --blank-rows-gap 1 --min-table-rows 2
+python3 excel_to_markdown.py /path/to/file.xlsx --split-tables --blank-rows-gap 1 --min-table-rows 2
 ```
 
 ### Keep output small (recommended for chat)
@@ -64,7 +64,7 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx -
 限制行/列（裁剪空白后再限制）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --max-rows 60 --max-cols 12
+python3 excel_to_markdown.py /path/to/file.xlsx --max-rows 60 --max-cols 12
 ```
 
 ### Headings control
@@ -72,7 +72,7 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx -
 多 sheet / 多表时默认会输出标题，便于引用；可关闭：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx --no-headings
+python3 excel_to_markdown.py /path/to/file.xlsx --no-headings
 ```
 
 ## Output Expectations

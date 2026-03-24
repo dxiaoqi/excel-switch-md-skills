@@ -4,7 +4,7 @@ from pathlib import Path
 
 try:
     import openpyxl
-except Exception as e:
+except Exception:
     sys.stderr.write("Missing dependency: openpyxl\n")
     sys.stderr.write("Install: python3 -m pip install openpyxl\n")
     raise

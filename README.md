@@ -2,7 +2,15 @@
 
 把本地 Excel（.xlsx）转换为适合 Trae / LLM / agent 直接消费的 Markdown 表格（pipe table）。支持多 sheet、按空行拆分多张表、限制导出规模以便在对话中传递。
 
-## 目录结构
+## 安装方式（推荐）
+
+把本仓库克隆到你的项目技能目录下：
+
+```bash
+git clone https://github.com/dxiaoqi/excel-ro-md-skills.git .trae/skills/excel-to-markdown
+```
+
+克隆完成后目录应类似：
 
 ```text
 .trae/skills/excel-to-markdown/
@@ -35,13 +43,13 @@ python3 -m pip install openpyxl
 把 Excel 转成 Markdown（输出到 stdout）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx > out.md
+python3 excel_to_markdown.py /path/to/file.xlsx > out.md
 ```
 
 输出到文件：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx -o out.md
+python3 excel_to_markdown.py /path/to/file.xlsx -o out.md
 ```
 
 ## 常用用法
@@ -51,21 +59,21 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx -
 按名称（可重复）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --sheet Sheet1 --sheet Sheet2
 ```
 
 按序号（从 1 开始，可重复）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --sheet-index 1 --sheet-index 3
 ```
 
 按正则（匹配 sheet 名称）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --sheet-regex "日报|周报"
 ```
 
@@ -74,14 +82,14 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
 当一个 sheet 中用空行分隔了多块表格：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --split-tables
 ```
 
 调整分表策略：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --split-tables --blank-rows-gap 1 --min-table-rows 2
 ```
 
@@ -90,14 +98,14 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
 限制导出行/列（先裁剪四周空白，再截取）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --max-rows 60 --max-cols 12
 ```
 
 限制单表最大单元格数量（安全阈值，避免巨大表卡住）：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --max-cells 20000
 ```
 
@@ -106,14 +114,14 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
 多 sheet / 多表时默认会输出标题（便于引用/定位）；可关闭：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --no-headings
 ```
 
 指定标题层级：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
+python3 excel_to_markdown.py /path/to/file.xlsx \
   --heading-level 2
 ```
 
@@ -122,7 +130,7 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py /path/to/file.xlsx \
 运行 `-h` 查看完整帮助：
 
 ```bash
-python3 .trae/skills/excel-to-markdown/excel_to_markdown.py -h
+python3 excel_to_markdown.py -h
 ```
 
 常用参数：
@@ -148,12 +156,6 @@ python3 .trae/skills/excel-to-markdown/excel_to_markdown.py -h
 - 默认 `data_only=True`：公式单元格输出计算结果；若希望导出公式本身，使用 `--formulas`
 - 单元格内换行会转为 `<br>`，并对 `|`、`\` 做转义，以保证 Markdown 表格不被破坏
 - 仅支持 `.xlsx`；`.xls` 请先转换为 `.xlsx`
-
-## 在 Trae / agent 中使用
-
-- 技能入口文件：[SKILL.md](./SKILL.md)
-- 通常做法：让 agent 运行上面的命令，将输出的 Markdown 直接粘贴回对话或写入 `out.md` 后再摘取关键片段
-- 推荐加上 `--max-rows/--max-cols` 来控制一次性输出长度
 
 ## 常见问题
 
